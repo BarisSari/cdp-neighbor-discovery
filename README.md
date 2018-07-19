@@ -18,7 +18,7 @@ This function firstly calls open_session function in order to connect the given 
 
 Neighbor_detail() takes one extra parameters rather than taking only an IP to connect, it takes “commands” parameter because it executes multiple line of commands when SSH connection is successful to an IP, i.e. Cisco Network Device. Find_ips(), the main function of this part of the project, creates these commands. It firstly connects to the device, and then tries to open an interactive shell. Paramiko’s invoke_shell() function does this job. When shell is opened, stdin, and output are directly connects to the device. So, commands are written to the input with this format (The variable“formatted_commands” has a string with this format):
 
-![input-1](images/input-format.jpg)
+![input-1](images/input.jpg)
 
 As it explained before, byte to string conversion is necessary for applying regular expression to the output. This time, regular expression matches the lines with " IP address: xxx" and takes the IP addresses from that matches. After the IP address is found, it is added to the list if it is not in the list of discovered IPs.
 
