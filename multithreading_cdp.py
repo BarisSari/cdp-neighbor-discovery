@@ -21,20 +21,21 @@
 # hostname + '-' + abbreviated interface name + '.' + domain_name + a separator + IP address
 
 
-from multiprocessing.pool import ThreadPool
-import paramiko
 import configparser
 import re
 import time
+from multiprocessing.pool import ThreadPool
+
+import paramiko
 
 # take data for ssh connection from credentials.ini file
 cfg = configparser.ConfigParser()
-cfg.read('credentials.ini')
+cfg.read("credentials.ini")
 
-username = cfg['DEFAULT']['username']
-password = cfg['DEFAULT']['password']
-default_domain_name = cfg['DEFAULT']['domain-name']
-port = cfg['DEFAULT']['port']
+username = cfg["DEFAULT"]["username"]
+password = cfg["DEFAULT"]["password"]
+default_domain_name = cfg["DEFAULT"]["domain-name"]
+port = cfg["DEFAULT"]["port"]
 
 ip_list = []
 hostname_list = []
@@ -43,14 +44,18 @@ matched_list = []
 
 
 def open_session(hostname):
-        try:
+    try:
         print("Connected to:{}".format(hostname))
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(hostname=hostname, port=port, username=username, password=password)
         return ssh, True
     except paramiko.ssh_exception.AuthenticationException:
-        print("Authentication to IP:{ip} failed! Please check your hostname, username and password.".format(ip=hostname))
+        print(
+            "Authentication to IP:{ip} failed! Please check your hostname, username and password.".format(
+                ip=hostname
+            )
+        )
         return None, False
     except paramiko.ssh_exception.NoValidConnectionsError:
         print("Unable to connect to IP:{ip}".format(ip=hostname))
@@ -62,7 +67,7 @@ def open_session(hostname):
 
 def extract_cdp_neighbors(ip):
     interface_names = []
-    command = 'show cdp neighbors'
+    command = "show cdp neighbors"
     # print("This command is going to be executed: '{0}'".format(command))
     # skip first 17 characters, then take the next 17 characters which start with Gi,Te,Vl,Loop or F
     regex = r"^.{17}(\b(Ten|Gig|Loo|Vla).{15})"
@@ -84,7 +89,9 @@ def extract_cdp_neighbors(ip):
             interface_names.append(temp_interface_name)
         return interface_names
     except paramiko.ssh_exception.SSHException:
-        print("Extract CDP Neighbor Function Error:There is an error connecting or establishing SSH session")
+        print(
+            "Extract CDP Neighbor Function Error:There is an error connecting or establishing SSH session"
+        )
         return None
     finally:
         ssh.close()
@@ -102,17 +109,17 @@ def neighbor_detail(ip, commands):
         return None
     try:
         channel = ssh.invoke_shell()
-        stdin = channel.makefile('wb')
-        output = channel.makefile('rb')
+        stdin = channel.makefile("wb")
+        output = channel.makefile("rb")
 
         formatted_commands.append("'''")
         for c in commands:
             formatted_commands.append(c)
         formatted_commands.append("'''")
-        formatted_commands = '\n'.join(formatted_commands)
+        formatted_commands = "\n".join(formatted_commands)
         stdin.write(str.encode(formatted_commands))
         output = output.read()
-        output = output.decode('utf-8')
+        output = output.decode("utf-8")
         stdin.close()
         matches = re.finditer(regex, output, re.MULTILINE)
         i = 1
@@ -123,7 +130,9 @@ def neighbor_detail(ip, commands):
                 if found_ip not in ip_list:
                     ip_list.append(found_ip)
     except paramiko.ssh_exception.SSHException:
-        print("Neighbor Detail Function Error:There is an error connecting or establishing SSH session")
+        print(
+            "Neighbor Detail Function Error:There is an error connecting or establishing SSH session"
+        )
     finally:
         ssh.close()
 
@@ -137,8 +146,8 @@ def find_ips(ip):
         return -1
     # for all interface names, find their IP and add to the ip_addresses list
     for name in interface_names:
-        commands.append('show cdp neighbors ' + name + ' detail | include IP')
-    commands.append('exit')
+        commands.append("show cdp neighbors " + name + " detail | include IP")
+    commands.append("exit")
     neighbor_detail(ip, commands)
 
 
@@ -150,20 +159,22 @@ def get_hostname_and_domain_name(ip):
     # try to connect to server, if there is no connection, return none
     ssh, connection = open_session(ip)
     if not connection:
-        return '-1', default_domain_name
+        return "-1", default_domain_name
     try:
         channel = ssh.invoke_shell()
-        stdin = channel.makefile('wb')
-        output = channel.makefile('rb')
-        stdin.write('''
+        stdin = channel.makefile("wb")
+        output = channel.makefile("rb")
+        stdin.write(
+            """
         show run | i hostname
         show run | i domain-name
         exit
-        ''')
+        """
+        )
 
         output = output.read()
         output = output.decode("utf-8").splitlines()
-        output = '\n'.join(output)
+        output = "\n".join(output)
         hostname_matches = re.finditer(regex_hostname, output, re.MULTILINE)
         for h in hostname_matches:
             hostname = h.group(1)
@@ -182,7 +193,7 @@ def get_hostname_and_domain_name(ip):
 
 def match_name_with_ip_address(ip, hostname, domain_name):
     temp_data = []
-    command = 'show ip interface brief | exclude unassigned'
+    command = "show ip interface brief | exclude unassigned"
     # print("\nNow, this command is going to be executed: '", command,"'")
     # take the first 25 characters which start with G,T,V,L or F
     regex = r"(^[GTVLF].{22})+(.{16})"
@@ -194,7 +205,7 @@ def match_name_with_ip_address(ip, hostname, domain_name):
         _, output, _ = ssh.exec_command(command)
         output = output.read()
         output = output.decode("utf-8").splitlines()
-        output = '\n'.join(output)
+        output = "\n".join(output)
 
         # find matching lines in output with regex rule
         matches = re.finditer(regex, output, re.MULTILINE)
@@ -216,15 +227,15 @@ def match_name_with_ip_address(ip, hostname, domain_name):
             temp_no = []
             # this loop parses the temp interface name from the end and takes the characters for temp no
             for j in range(1, len(temp_interface)):
-                if temp_interface[-j] == '/' or temp_interface[-j].isdigit():
+                if temp_interface[-j] == "/" or temp_interface[-j].isdigit():
                     temp_no.append(temp_interface[-j])
 
             # temp name means the shortened+numbers of the interface name, i.e TenGigabitEthernet1/1 to Te1_1
-            temp_name = shortened + ''.join(temp_no[::-1])
-            temp_name = temp_name.replace('/', '_')
+            temp_name = shortened + "".join(temp_no[::-1])
+            temp_name = temp_name.replace("/", "_")
             # name means this type of data: istnswbb0001-te1_1.euea.corp.bshg.com
-            name = hostname + '-' + temp_name.lower() + '.' + domain_name
-            data = name + '\t' + temp_ip
+            name = hostname + "-" + temp_name.lower() + "." + domain_name
+            data = name + "\t" + temp_ip
             # print(data)
             temp_data.append(data)
 
@@ -238,7 +249,7 @@ def match_name_with_ip_address(ip, hostname, domain_name):
 def write_file(ip):
     global fqdn_list
     hostname, domain_name = get_hostname_and_domain_name(ip)
-    if hostname == '-1':
+    if hostname == "-1":
         return -1
     elif not hostname:
         print("Hostname couldn't be found!")
@@ -246,10 +257,10 @@ def write_file(ip):
     elif hostname not in hostname_list:
         hostname_list.append(hostname)
         print("Hostname:", hostname)
-        fqdn = '%s'%hostname
-        fqdn += '.%s'%domain_name
+        fqdn = "%s" % hostname
+        fqdn += ".%s" % domain_name
         fqdn_list.append(fqdn)
-        
+
         lines_to_write = match_name_with_ip_address(ip, hostname, domain_name)
         for line in lines_to_write:
             matched_list.append(lines_to_write)
@@ -261,7 +272,7 @@ def write_file(ip):
 def main():
     global ip_list
     # ip for first ssh connection
-    with open('ip.txt') as f:
+    with open("ip.txt") as f:
         ip = f.readline()
     ip_list.append(ip)
 
@@ -283,7 +294,7 @@ def main():
         i = i + 1
 
     while i < len(ip_list):
-        limit = i+min(15, (len(ip_list)-i))
+        limit = i + min(15, (len(ip_list) - i))
         hostnames = ip_list[i:limit]
         pool.map(find_ips, hostnames)
         i = limit
@@ -293,20 +304,20 @@ def main():
     pool.join()
 
     end = time.time()
-    elapsed = (end-start)/60
+    elapsed = (end - start) / 60
     string = "\nTotal execution time: {:.7} minutes.".format(elapsed)
     print(string)
-    
+
     for ip in ip_list:
-        ip_file.write(ip + '\n')
+        ip_file.write(ip + "\n")
     ip_file.close()
 
     for fqdn in fqdn_list:
-        fqdn_file.write(fqdn + '\n')
+        fqdn_file.write(fqdn + "\n")
     fqdn_file.close()
 
     for match in matched_list:
-        dns_file.write(match.strip() + '\n')
+        dns_file.write(match.strip() + "\n")
     dns_file.write(string)
     dns_file.close()
 
