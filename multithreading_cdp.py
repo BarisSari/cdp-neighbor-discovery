@@ -16,7 +16,7 @@
 # For each time an IP is visited, the functions in matching.py work.
 # Hostname and domain name of the IP address are found. Then all the
 # interface names are found and are abbreviated. Finally, a list
-# that contain this kind of lines is created by matchin.py function:
+# that contain this kind of lines is created by this file's function:
 #
 # hostname + '-' + abbreviated interface name + '.' + domain_name + a separator + IP address
 
@@ -45,7 +45,7 @@ matched_list = []
 
 def open_session(hostname):
     try:
-        print("Connected to:{}".format(hostname))
+        print(f"Connected to:{hostname}")
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(hostname=hostname, port=port, username=username, password=password)
@@ -58,10 +58,10 @@ def open_session(hostname):
         )
         return None, False
     except paramiko.ssh_exception.NoValidConnectionsError:
-        print("Unable to connect to IP:{ip}".format(ip=hostname))
+        print(f"Unable to connect to IP:{hostname}")
         return None, False
     except (ConnectionError, TimeoutError):
-        print("Timeout error occured for IP:{ip}!".format(ip=hostname))
+        print(f"Timeout error occured for IP:{hostname}!")
         return None, False
 
 
@@ -146,7 +146,7 @@ def find_ips(ip):
         return -1
     # for all interface names, find their IP and add to the ip_addresses list
     for name in interface_names:
-        commands.append("show cdp neighbors " + name + " detail | include IP")
+        commands.append(f"show cdp neighbors {name} detail | include IP")
     commands.append("exit")
     neighbor_detail(ip, commands)
 
@@ -233,11 +233,9 @@ def match_name_with_ip_address(ip, hostname, domain_name):
             # temp name means the shortened+numbers of the interface name, i.e TenGigabitEthernet1/1 to Te1_1
             temp_name = shortened + "".join(temp_no[::-1])
             temp_name = temp_name.replace("/", "_")
-            # name means this type of data: istnswbb0001-te1_1.euea.corp.bshg.com
-            name = hostname + "-" + temp_name.lower() + "." + domain_name
-            data = name + "\t" + temp_ip
-            # print(data)
-            temp_data.append(data)
+            # name means this type of data: istnswbb0001-te1_1.euea.corp.bshg.com    IP-Number
+            name = f"{hostname}-{temp_name.lower()}.{domain_name}\t{temp_ip}"
+            temp_data.append(name)
 
         return temp_data
     except paramiko.ssh_exception.SSHException:
@@ -256,16 +254,15 @@ def write_file(ip):
         return -2
     elif hostname not in hostname_list:
         hostname_list.append(hostname)
-        print("Hostname:", hostname)
-        fqdn = "%s" % hostname
-        fqdn += ".%s" % domain_name
+        print(f"Hostname: {hostname}")
+        fqdn = f"{hostname}.{domain_name}"
         fqdn_list.append(fqdn)
 
         lines_to_write = match_name_with_ip_address(ip, hostname, domain_name)
         for line in lines_to_write:
-            matched_list.append(lines_to_write)
+            matched_list.append(line)
     else:
-        print("Hostname:{0} is in the list of hostnames".format(hostname))
+        print(f"Hostname:{hostname} is in the list of hostnames")
         return -3
 
 
@@ -275,15 +272,6 @@ def main():
     with open("ip.txt") as f:
         ip = f.readline()
     ip_list.append(ip)
-
-    ip_filename = "found_ips_multithreading_" + ip + ".txt"
-    ip_file = open(ip_filename, "w")
-
-    fqdn_filename = "fqdn_multithreading_" + ip + ".txt"
-    fqdn_file = open(fqdn_filename, "w")
-
-    dns_filename = "dns_multithreading_" + ip + ".txt"
-    dns_file = open(dns_filename, "w")
 
     pool = ThreadPool(15)
     i = 0
@@ -305,21 +293,24 @@ def main():
 
     end = time.time()
     elapsed = (end - start) / 60
-    string = "\nTotal execution time: {:.7} minutes.".format(elapsed)
+    string = f"\nTotal execution time: {elapsed:.7} minutes."
     print(string)
 
-    for ip in ip_list:
-        ip_file.write(ip + "\n")
-    ip_file.close()
+    ip_filename = "found_ips_multithreading_" + ip + ".txt"
+    fqdn_filename = "fqdn_multithreading_" + ip + ".txt"
+    dns_filename = "dns_multithreading_" + ip + ".txt"
+    with open(ip_filename, "w") as ip_file:
+        for ip in ip_list:
+            ip_file.write(ip + "\n")
 
-    for fqdn in fqdn_list:
-        fqdn_file.write(fqdn + "\n")
-    fqdn_file.close()
+    with open(fqdn_filename, "w") as fqdn_file:
+        for fqdn in fqdn_list:
+            fqdn_file.write(fqdn + "\n")
 
-    for match in matched_list:
-        dns_file.write(match.strip() + "\n")
-    dns_file.write(string)
-    dns_file.close()
+    with open(dns_filename, "w") as dns_file:
+        for match in matched_list:
+            dns_file.write(match.strip() + "\n")
+        dns_file.write(string)
 
 
 if __name__ == "__main__":
